@@ -17,13 +17,37 @@ class PoolAlreadyExistsError(PyDynoError):
     pass
 
 
-class AdapterNotInitializedError(PyDynoError):
-    """Raised when trying to use an uninitialized adapter"""
+class HealthCheckFailedError(PyDynoError):
+    """Raised when health check consistently fails"""
 
     pass
 
 
-class HealthCheckFailedError(PyDynoError):
-    """Raised when health check consistently fails"""
+class AdapterError(Exception):
+    """Base exception for adapter-related errors"""
+
+    pass
+
+
+class AdapterInitializationError(AdapterError):
+    """Raised when adapter initialization fails"""
+
+    pass
+
+
+class AdapterClosedError(AdapterError):
+    """Raised when trying to use a closed adapter"""
+
+    pass
+
+
+class AdapterHealthCheckError(AdapterError):
+    """Raised when health check fails consistently"""
+
+    pass
+
+
+class AdapterConfigurationError(AdapterError):
+    """Raised when adapter configuration is invalid"""
 
     pass
