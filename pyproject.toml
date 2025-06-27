@@ -1,9 +1,42 @@
 [project]
-name = "pydyno"
+name = "pydyno_pool"
 version = "0.1.0"
+authors = [
+    { name = "Ryan Davis", email = "ryancraigdavis@gmail.com" },
+]
 description = "A simple pool connection manager based off of Netflix's Dyno package, but for Python"
 readme = "README.md"
 requires-python = ">=3.12"
+
+keywords = [
+    "connection-pooling",
+    "database", 
+    "async",
+    "postgresql",
+    "netflix-dyno",
+    "sqlalchemy"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: AsyncIO",
+]
+
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/ryancraigdavis/PyDyno"
+Issues = "https://github.com/ryancraigdavis/PyDyno/issues"
+
+[project.optional-dependencies]
 dependencies = [
     "attrs>=25.3.0",
     "sqlalchemy>=2.0.41",
@@ -12,6 +45,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.4.1",
+    "twine>=6.1.0",
 ]
 
 [build-system]
@@ -20,3 +54,6 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/pydyno"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
