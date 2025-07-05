@@ -1,6 +1,6 @@
 [project]
 name = "pydyno_pool"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
     { name = "Ryan Davis", email = "ryancraigdavis@gmail.com" },
 ]
@@ -33,6 +33,8 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
     "asyncpg>=0.30.0",
+    "attrs>=25.3.0",
+    "sqlalchemy>=2.0.41",
 ]
 
 [project.urls]
@@ -43,6 +45,7 @@ Issues = "https://github.com/ryancraigdavis/PyDyno/issues"
 dependencies = [
     "attrs>=25.3.0",
     "sqlalchemy>=2.0.41",
+    "asyncpg>=0.30.0",
 ]
 
 [dependency-groups]
