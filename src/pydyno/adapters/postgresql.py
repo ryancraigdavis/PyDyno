@@ -154,6 +154,24 @@ class PostgreSQLAdapter(ConnectionAdapter):
             # Build database URL
             database_url = self._build_database_url()
 
+            connect_args: Dict[str, Any] = {
+                "server_settings": {
+                    "application_name": f"pydyno_{self.name}",
+                    "timezone": "utc",
+                }
+            }
+
+            # Handle SSL configuration for asyncpg
+            if "sslmode" in self.config:
+                sslmode = self.config["sslmode"]
+                if sslmode == "disable":
+                    connect_args["ssl"] = False
+                elif sslmode in ["require", "verify-ca", "verify-full"]:
+                    connect_args["ssl"] = True
+                elif sslmode == "prefer":
+                    connect_args["ssl"] = "prefer"
+                elif sslmode == "allow":
+                    connect_args["ssl"] = "try"
             # Create async engine with connection pooling
             self._engine = create_async_engine(
                 database_url,
