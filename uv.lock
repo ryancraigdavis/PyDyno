@@ -363,14 +363,17 @@ wheels = [
 
 [[package]]
 name = "pydyno-pool"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
+    { name = "attrs" },
+    { name = "sqlalchemy" },
 ]
 
 [package.optional-dependencies]
 dependencies = [
+    { name = "asyncpg" },
     { name = "attrs" },
     { name = "sqlalchemy" },
 ]
@@ -384,7 +387,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "asyncpg", marker = "extra == 'dependencies'", specifier = ">=0.30.0" },
+    { name = "attrs", specifier = ">=25.3.0" },
     { name = "attrs", marker = "extra == 'dependencies'", specifier = ">=25.3.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.41" },
     { name = "sqlalchemy", marker = "extra == 'dependencies'", specifier = ">=2.0.41" },
 ]
 provides-extras = ["dependencies"]
