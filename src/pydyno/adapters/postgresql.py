@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import AsyncAdaptedQueuePool
 from sqlalchemy.ext.declarative import declarative_base
 
 from pydyno.core.adapters import ConnectionAdapter
@@ -158,7 +158,7 @@ class PostgreSQLAdapter(ConnectionAdapter):
             self._engine = create_async_engine(
                 database_url,
                 # Connection pool settings
-                poolclass=QueuePool,
+                poolclass=AsyncAdaptedQueuePool,
                 pool_size=self.pool_config.max_connections,
                 max_overflow=self.pool_config.max_overflow,
                 pool_pre_ping=self.pool_config.pool_pre_ping,

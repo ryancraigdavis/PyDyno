@@ -31,6 +31,9 @@ classifiers = [
 
 license = "MIT"
 license-files = ["LICENSE"]
+dependencies = [
+    "asyncpg>=0.30.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/ryancraigdavis/PyDyno"
