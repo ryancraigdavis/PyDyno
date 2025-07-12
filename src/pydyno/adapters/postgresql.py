@@ -131,16 +131,8 @@ class PostgreSQLAdapter(ConnectionAdapter):
         password = self.config["password"]
         database = self.config["database"]
 
-        # Additional connection parameters
-        params = []
-        if "sslmode" in self.config:
-            params.append(f"sslmode={self.config['sslmode']}")
-        if "application_name" in self.config:
-            params.append(f"application_name={self.config['application_name']}")
-
-        param_string = "?" + "&".join(params) if params else ""
-
-        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}{param_string}"
+        # Don't add sslmode or application_name to URL - handle in connect_args
+        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
 
     async def initialize(self):
         """Initialize the PostgreSQL connection pool"""
@@ -154,6 +146,7 @@ class PostgreSQLAdapter(ConnectionAdapter):
             # Build database URL
             database_url = self._build_database_url()
 
+            # Prepare connect_args for asyncpg
             connect_args: Dict[str, Any] = {
                 "server_settings": {
                     "application_name": f"pydyno_{self.name}",
@@ -172,6 +165,7 @@ class PostgreSQLAdapter(ConnectionAdapter):
                     connect_args["ssl"] = "prefer"
                 elif sslmode == "allow":
                     connect_args["ssl"] = "try"
+
             # Create async engine with connection pooling
             self._engine = create_async_engine(
                 database_url,
@@ -186,17 +180,12 @@ class PostgreSQLAdapter(ConnectionAdapter):
                 # Logging
                 echo=self.pool_config.echo,
                 # Connection arguments for asyncpg
-                connect_args={
-                    "server_settings": {
-                        "application_name": f"pydyno_{self.name}",
-                        "timezone": "utc",
-                    }
-                },
+                connect_args=connect_args,  # ✅ Use the variable, not inline dict
             )
 
-            # Add connection event listeners
-            event.listen(self._engine.sync_engine, "connect", self._on_connect)
-            event.listen(self._engine.sync_engine, "checkout", self._on_checkout)
+            # Remove event listeners for now (they cause async issues)
+            # event.listen(self._engine.sync_engine, "connect", self._on_connect)
+            # event.listen(self._engine.sync_engine, "checkout", self._on_checkout)
 
             # Create session factory
             self._session_factory = sessionmaker(
@@ -240,12 +229,8 @@ class PostgreSQLAdapter(ConnectionAdapter):
     def _on_connect(self, dbapi_connection, connection_record):
         """Called when a new database connection is created"""
         self.logger.debug("New PostgreSQL connection established")
-
-        # Set up connection-specific settings
-        with dbapi_connection.cursor() as cursor:
-            # Enable UUID extension if not exists (safe to run multiple times)
-            cursor.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
-            dbapi_connection.commit()
+        # Don't try to execute SQL here with async connections
+        # Handle extensions in application startup instead
 
     def _on_checkout(self, dbapi_connection, connection_record, connection_proxy):
         """Called when a connection is retrieved from the pool"""
