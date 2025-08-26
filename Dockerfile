@@ -17,8 +17,8 @@ COPY uv.lock* ./
 COPY src/ ./src/
 COPY tests/ ./tests/
 
-# Install PyDyno in editable mode
-RUN pip install --no-cache-dir -e .
+# Install PyDyno in editable mode with all optional dependencies
+RUN pip install --no-cache-dir -e ".[all]"
 
 # Set Python path
 ENV PYTHONPATH=/app

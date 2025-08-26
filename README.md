@@ -68,9 +68,9 @@ asyncio.run(main())
 | Service | Status | Adapter |
 |---------|--------|---------|
 | **PostgreSQL** | ✅ Ready | `PostgreSQLAdapter` |
+| **Kafka** | ✅ Ready | `KafkaAdapter` |
 | **Redis** | 🚧 Planned | `RedisAdapter` |
 | **HTTP APIs** | 🚧 Planned | `HTTPAdapter` |
-| **Kafka** | 🚧 Planned | `KafkaAdapter` |
 
 ## 🛠️ Installation
 
@@ -80,6 +80,12 @@ pip install pydyno
 
 # With PostgreSQL support
 pip install pydyno[postgresql]
+
+# With Kafka support  
+pip install pydyno[kafka]
+
+# With all supported services
+pip install pydyno[all]
 
 # Development installation
 git clone https://github.com/yourusername/pydyno.git
@@ -143,6 +149,40 @@ adapter = create_postgresql_adapter("my_db")
 adapter = create_postgresql_adapter("my_db")
 ```
 
+### Kafka Adapter
+
+```python
+from pydyno.adapters import create_kafka_adapter, create_emby_kafka_adapter
+
+# Method 1: Direct creation
+adapter = create_kafka_adapter(
+    name="my_kafka",
+    bootstrap_servers=["localhost:9092"],
+    client_type="both",  # "producer", "consumer", or "both"
+    producer_config={
+        'acks': 'all',
+        'retries': 3,
+        'enable_idempotence': True
+    },
+    consumer_config={
+        'group_id': 'my-service',
+        'auto_offset_reset': 'latest'
+    }
+)
+
+# Method 2: Optimized for streaming applications (like Emby)
+adapter = create_emby_kafka_adapter(
+    name="streaming_kafka",
+    bootstrap_servers=["localhost:9092"],
+    consumer_group="media-processor"
+)
+
+# Method 3: From environment variables
+# Set: KAFKA_BOOTSTRAP_SERVERS, KAFKA_CONSUMER_GROUP
+from pydyno.adapters import create_kafka_adapter_from_env
+adapter = await create_kafka_adapter_from_env("env_kafka")
+```
+
 ### Usage Examples
 
 #### FastAPI Integration
@@ -181,6 +221,51 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db_session)):
 app = FastAPI()
 app.add_event_handler("startup", startup_event)
 app.add_event_handler("shutdown", shutdown_event)
+```
+
+#### Kafka Streaming
+
+```python
+import asyncio
+from pydyno import PyDyno
+from pydyno.adapters import create_kafka_adapter
+
+async def streaming_example():
+    # Create PyDyno manager
+    dyno = PyDyno()
+    
+    # Create Kafka adapter
+    kafka_adapter = create_kafka_adapter(
+        name="stream_processor",
+        bootstrap_servers=["localhost:9092"],
+        client_type="both"
+    )
+    
+    await dyno.create_pool("kafka", kafka_adapter)
+    pool = dyno.get_pool("kafka")
+    
+    # Produce messages
+    for i in range(5):
+        await pool.send_message(
+            topic="events",
+            value={"event_id": i, "data": f"Event {i}"},
+            key=f"event_{i}"
+        )
+        
+    print("✅ Sent 5 messages")
+    
+    # Consume messages
+    async with pool.consume_messages(["events"]) as consumer:
+        count = 0
+        async for message in consumer:
+            print(f"Received: {message.value}")
+            count += 1
+            if count >= 5:
+                break
+                
+    await dyno.close_all()
+
+asyncio.run(streaming_example())
 ```
 
 #### Session Management

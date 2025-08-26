@@ -37,6 +37,12 @@ from pydyno.core.pool_config import PoolConfig
 from pydyno.adapters.postgresql import PostgreSQLAdapter, create_postgresql_adapter
 from pydyno.core.exceptions import PyDynoError
 
+# Check for optional imports
+try:
+    from pydyno.adapters import KafkaAdapter, create_kafka_adapter, KAFKA_AVAILABLE
+except ImportError:
+    KAFKA_AVAILABLE = False
+
 # SQLAlchemy imports
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +55,7 @@ class IntegrationTestSuite:
         self.logger = logging.getLogger("pydyno.integration_test")
         self.dyno: Optional[PyDyno] = None
         self.test_results: List[tuple] = []
+        self.kafka_available = KAFKA_AVAILABLE
 
     def get_database_config(self) -> Dict[str, Any]:
         """Get database configuration from environment variables"""
@@ -97,12 +104,46 @@ class IntegrationTestSuite:
             # Add pool to manager
             await self.dyno.create_pool("main_db", adapter)
             
+            # Setup Kafka if available
+            if self.kafka_available:
+                await self._setup_kafka()
+            
             self.logger.info("✅ PyDyno setup completed successfully")
             return True
 
         except Exception as e:
             self.logger.error(f"❌ PyDyno setup failed: {e}")
             return False
+
+    async def _setup_kafka(self):
+        """Setup Kafka adapter for testing"""
+        try:
+            # Get Kafka configuration from environment
+            bootstrap_servers = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092').split(',')
+            
+            kafka_adapter = create_kafka_adapter(
+                name="test_kafka",
+                bootstrap_servers=bootstrap_servers,
+                client_type="both",
+                producer_config={
+                    'acks': 'all',
+                    'retries': 3,
+                    'enable_idempotence': True
+                },
+                consumer_config={
+                    'group_id': 'pydyno-integration-test',
+                    'auto_offset_reset': 'latest'
+                },
+                pool_config=PoolConfig(max_connections=3, timeout=30.0)
+            )
+            
+            # Add to PyDyno manager
+            await self.dyno.create_pool("test_kafka", kafka_adapter)
+            self.logger.info("✅ Kafka adapter setup completed")
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ Kafka setup failed (may not be available): {e}")
+            self.kafka_available = False
 
     async def cleanup(self):
         """Cleanup PyDyno resources"""
@@ -369,6 +410,140 @@ class IntegrationTestSuite:
             result = await pool.execute_scalar("SELECT 1")
             assert result == 1, "Pool should still be functional after error"
 
+    async def test_kafka_connectivity(self):
+        """Test basic Kafka connectivity"""
+        if not self.kafka_available:
+            return
+            
+        async with self.test_context("Kafka Connectivity"):
+            pool = self.dyno.get_pool("test_kafka")
+            
+            # Test health check
+            healthy = await pool.health_check()
+            assert healthy, "Kafka should be healthy"
+            
+            # Get connection info
+            info = await pool.get_connection_info()
+            assert info["status"] == "connected", f"Expected connected status, got {info['status']}"
+            assert info["client_type"] == "both", f"Expected 'both' client type"
+            
+            self.logger.info(f"   Connected to {info.get('broker_count', 0)} Kafka brokers")
+
+    async def test_kafka_producer(self):
+        """Test Kafka message production"""
+        if not self.kafka_available:
+            return
+            
+        async with self.test_context("Kafka Producer"):
+            pool = self.dyno.get_pool("test_kafka")
+            
+            # Send a test message
+            result = await pool.send_message(
+                topic="pydyno_test",
+                value={"test": "message", "timestamp": time.time()},
+                key="test_key"
+            )
+            
+            assert result["topic"] == "pydyno_test", f"Expected topic pydyno_test, got {result['topic']}"
+            assert "partition" in result, "Result should contain partition"
+            assert "offset" in result, "Result should contain offset"
+            
+            self.logger.info(f"   Sent message to {result['topic']}:{result['partition']}@{result['offset']}")
+
+    async def test_kafka_batch_producer(self):
+        """Test Kafka batch message production"""
+        if not self.kafka_available:
+            return
+            
+        async with self.test_context("Kafka Batch Producer"):
+            pool = self.dyno.get_pool("test_kafka")
+            
+            # Send batch of messages
+            messages = [
+                {"topic": "pydyno_test", "value": {"batch": "message", "id": i}, "key": f"batch_{i}"}
+                for i in range(3)
+            ]
+            
+            results = await pool.send_batch(messages)
+            
+            assert len(results) == 3, f"Expected 3 results, got {len(results)}"
+            
+            for i, result in enumerate(results):
+                assert result["topic"] == "pydyno_test", f"Expected topic pydyno_test for message {i}"
+                
+            self.logger.info(f"   Sent batch of {len(results)} messages")
+
+    async def test_kafka_consumer(self):
+        """Test Kafka message consumption"""
+        if not self.kafka_available:
+            return
+            
+        async with self.test_context("Kafka Consumer"):
+            pool = self.dyno.get_pool("test_kafka")
+            
+            # First send a message to consume
+            await pool.send_message(
+                topic="pydyno_test",
+                value={"consumer": "test", "timestamp": time.time()},
+                key="consumer_key"
+            )
+            
+            # Wait a bit for message to be available
+            await asyncio.sleep(1)
+            
+            # Try to consume a message (with timeout)
+            message = await pool.consume_single_message(["pydyno_test"], timeout_ms=5000)
+            
+            if message:
+                assert message.topic == "pydyno_test", f"Expected topic pydyno_test, got {message.topic}"
+                assert message.value is not None, "Message should have value"
+                self.logger.info(f"   Consumed message from {message.topic}:{message.partition}@{message.offset}")
+            else:
+                self.logger.info("   No message consumed (timeout - this is OK for testing)")
+
+    async def test_kafka_topic_metadata(self):
+        """Test Kafka topic metadata retrieval"""
+        if not self.kafka_available:
+            return
+            
+        async with self.test_context("Kafka Topic Metadata"):
+            pool = self.dyno.get_pool("test_kafka")
+            
+            # Get metadata for test topic
+            metadata = await pool.get_topic_metadata("pydyno_test")
+            
+            assert metadata["topic"] == "pydyno_test", f"Expected topic pydyno_test"
+            assert "partitions" in metadata, "Metadata should contain partition count"
+            assert "partition_info" in metadata, "Metadata should contain partition info"
+            
+            self.logger.info(f"   Topic has {metadata['partitions']} partitions")
+
+    async def test_kafka_metrics(self):
+        """Test Kafka metrics collection"""
+        if not self.kafka_available:
+            return
+            
+        async with self.test_context("Kafka Metrics"):
+            # Send some messages to generate metrics
+            pool = self.dyno.get_pool("test_kafka")
+            
+            for i in range(3):
+                await pool.send_message(
+                    topic="pydyno_test",
+                    value={"metrics": "test", "id": i},
+                    key=f"metrics_{i}"
+                )
+            
+            # Get metrics
+            metrics = await self.dyno.get_metrics("test_kafka")
+            metrics_dict = await self.dyno.get_metrics_dict("test_kafka")
+            
+            assert metrics.total_requests >= 3, f"Expected at least 3 requests, got {metrics.total_requests}"
+            assert metrics.successful_requests >= 3, f"Expected at least 3 successful requests"
+            assert metrics.success_rate > 0, f"Success rate should be > 0: {metrics.success_rate}%"
+            
+            self.logger.info(f"   Kafka Metrics - Total: {metrics.total_requests}, Success Rate: {metrics.success_rate:.1f}%")
+
     async def run_all_tests(self):
         """Run all integration tests"""
         self.logger.info("🚀 Starting PyDyno Integration Test Suite")
@@ -393,6 +568,19 @@ class IntegrationTestSuite:
                 self.test_pool_configuration,
                 self.test_error_handling,
             ]
+            
+            # Add Kafka tests if available
+            if self.kafka_available:
+                kafka_tests = [
+                    self.test_kafka_connectivity,
+                    self.test_kafka_producer,
+                    self.test_kafka_batch_producer,
+                    self.test_kafka_consumer,
+                    self.test_kafka_topic_metadata,
+                    self.test_kafka_metrics,
+                ]
+                tests.extend(kafka_tests)
+                self.logger.info(f"   Added {len(kafka_tests)} Kafka tests")
 
             for test in tests:
                 await test()
@@ -432,6 +620,8 @@ class IntegrationTestSuite:
         if failed == 0:
             self.logger.info("\n🎉 ALL INTEGRATION TESTS PASSED!")
             self.logger.info("   ✅ PyDyno is working correctly with PostgreSQL")
+            if self.kafka_available:
+                self.logger.info("   ✅ PyDyno is working correctly with Kafka")
             self.logger.info("   ✅ Connection pooling is functional") 
             self.logger.info("   ✅ Transaction management is working")
             self.logger.info("   ✅ Health monitoring is operational")

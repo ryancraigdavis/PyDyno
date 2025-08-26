@@ -13,8 +13,11 @@ keywords = [
     "database", 
     "async",
     "postgresql",
+    "kafka",
+    "streaming",
     "netflix-dyno",
-    "sqlalchemy"
+    "sqlalchemy",
+    "aiokafka"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -42,10 +45,15 @@ Homepage = "https://github.com/ryancraigdavis/PyDyno"
 Issues = "https://github.com/ryancraigdavis/PyDyno/issues"
 
 [project.optional-dependencies]
-dependencies = [
-    "attrs>=25.3.0",
-    "sqlalchemy>=2.0.41",
+postgresql = [
     "asyncpg>=0.30.0",
+]
+kafka = [
+    "aiokafka>=0.12.0",
+]
+all = [
+    "asyncpg>=0.30.0",
+    "aiokafka>=0.12.0",
 ]
 
 [dependency-groups]

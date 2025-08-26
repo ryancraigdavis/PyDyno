@@ -48,6 +48,14 @@ async def test_imports():
             PostgreSQLAdapter,
             create_postgresql_adapter,
         )
+        
+        # Test optional adapter imports
+        from pydyno.adapters import KAFKA_AVAILABLE
+        if KAFKA_AVAILABLE:
+            from pydyno.adapters import KafkaAdapter
+            print("   ✅ Kafka adapter available")
+        else:
+            print("   ⚠️  Kafka adapter not available (install with: pip install pydyno[kafka])")
 
         print("✅ All imports successful!")
         return True
