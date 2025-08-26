@@ -1,0 +1,45 @@
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: pydyno_test_db
+    environment:
+      POSTGRES_DB: pydyno_test
+      POSTGRES_USER: pydyno_user
+      POSTGRES_PASSWORD: pydyno_pass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflicts with existing PostgreSQL
+    volumes:
+      - ./tests/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pydyno_user -d pydyno_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    tmpfs:
+      - /var/lib/postgresql/data  # Use tmpfs for speed in testing
+
+  # Test runner service 
+  test-runner:
+    build: .
+    container_name: pydyno_test_runner
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: pydyno_user
+      POSTGRES_PASSWORD: pydyno_pass
+      POSTGRES_DB: pydyno_test
+      DATABASE_URL: postgresql://pydyno_user:pydyno_pass@postgres:5432/pydyno_test
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: python -m src.pydyno.scripts.test_integration
+
+networks:
+  default:
+    name: pydyno_test_network

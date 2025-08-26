@@ -276,17 +276,52 @@ async def get_user_analytics(dyno: PyDyno, user_id: int):
 
 ## 🧪 Testing
 
+PyDyno includes comprehensive testing capabilities:
+
+### Integration Tests (Recommended)
+
+Run the full integration test suite with Docker:
+
+```bash
+# Complete integration test suite (includes PostgreSQL setup)
+./run_integration_tests.sh
+
+# Setup test environment for manual testing
+./run_integration_tests.sh --setup-only
+
+# Cleanup test environment  
+./run_integration_tests.sh --cleanup
+```
+
+**What's tested:**
+- Real PostgreSQL connectivity and pooling
+- Transaction management and rollback
+- Complex queries, JSON operations, stored procedures
+- Concurrent connection handling
+- Health monitoring and metrics collection
+- Error handling and recovery
+
+### Basic Tests
+
+For quick functionality checks without Docker:
+
 ```bash
 # Run basic functionality tests (no database required)
-python test_pydyno_basic.py
+python -m src.pydyno.scripts.test_pydyno_basic
 
-# Run database tests (requires PostgreSQL)
+# Manual database tests (requires existing PostgreSQL)
 export POSTGRES_HOST=localhost
-export POSTGRES_USER=postgres
+export POSTGRES_USER=postgres  
 export POSTGRES_PASSWORD=password
 export POSTGRES_DB=test_db
-python test_pydyno_database.py
+python -m src.pydyno.scripts.test_postgres_adapter
 ```
+
+### Requirements
+
+- **Docker Integration Tests**: Docker and Docker Compose
+- **Manual Tests**: Python 3.12+, PostgreSQL instance
+- **CI/CD**: See `tests/README.md` for setup examples
 
 ## 🏗️ Architecture
 
